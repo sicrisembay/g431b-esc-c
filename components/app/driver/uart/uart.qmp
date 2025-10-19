@@ -1,0 +1,270 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<package name="uart" stereotype="0x02" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.state-machine.com/qm/qm7.xsd">
+ <package name="event" stereotype="0x01">
+  <class name="uartMsgEvt" superclass="qpc::QEvt">
+   <attribute name="buf[DMA_BUFFER_SIZE]" type="uint8_t" visibility="0x02" properties="0x00"/>
+   <attribute name="bufLen" type="uint16_t" visibility="0x02" properties="0x00"/>
+  </class>
+ </package>
+ <class name="uart" superclass="qpc::QActive">
+  <attribute name="pHandle" type="UART_HandleTypeDef *" visibility="0x02" properties="0x00"/>
+  <attribute name="pTxDMA" type="DMA_HandleTypeDef *" visibility="0x02" properties="0x00"/>
+  <attribute name="pRxDMA" type="DMA_HandleTypeDef *" visibility="0x02" properties="0x00"/>
+  <attribute name="rxDmaBuffer[DMA_BUFFER_SIZE]" type="uint8_t" visibility="0x02" properties="0x00"/>
+  <attribute name="old_rx_pos" type="uint32_t" visibility="0x02" properties="0x00"/>
+  <attribute name="txBuffer[TX_BUFFER_SIZE]" type="uint8_t" visibility="0x02" properties="0x00"/>
+  <attribute name="txBufHead" type="uint16_t" visibility="0x02" properties="0x00"/>
+  <attribute name="txBufTail" type="uint16_t" visibility="0x02" properties="0x00"/>
+  <attribute name="txLen" type="uint16_t" visibility="0x02" properties="0x00"/>
+  <statechart properties="0x02">
+   <initial target="../1/1">
+    <action>QS_OBJ_DICTIONARY(&amp;l_uart);
+
+memset(me-&gt;txBuffer, 0, TX_BUFFER_SIZE);
+me-&gt;txBufHead = 0;
+me-&gt;txBufTail = 0;
+
+Q_ASSERT(HAL_OK == HAL_UARTEx_ReceiveToIdle_DMA(me-&gt;pHandle, me-&gt;rxDmaBuffer, DMA_BUFFER_SIZE));</action>
+    <initial_glyph conn="16,5,5,0,13,10">
+     <action box="0,-2,10,2"/>
+    </initial_glyph>
+   </initial>
+   <state name="TOP">
+    <tran trig="RX_DATA_AVAILABLE">
+     <action>for(uint16_t i = 0; i &lt; Q_EVT_CAST(uartMsgEvt)-&gt;bufLen; i++) {
+    QS_RX_PUT(Q_EVT_CAST(uartMsgEvt)-&gt;buf[i]);
+}
+
+if(Q_EVT_CAST(uartMsgEvt)-&gt;bufLen &gt; 0) {
+    QS_rxParse();
+}</action>
+     <tran_glyph conn="15,64,3,-1,20">
+      <action box="0,-2,20,2"/>
+     </tran_glyph>
+    </tran>
+    <state name="IDLE">
+     <tran trig="TRANSMIT_REQUEST">
+      <action>for(uint16_t i = 0; i &lt; Q_EVT_CAST(uartMsgEvt)-&gt;bufLen; i++) {
+    uint16_t lookAheadIdx = (me-&gt;txBufHead + 1) % TX_BUFFER_SIZE;
+    if(lookAheadIdx == me-&gt;txBufTail) {
+        /* buffer full */
+        break;
+    }
+    me-&gt;txBuffer[me-&gt;txBufHead] = Q_EVT_CAST(uartMsgEvt)-&gt;buf[i];
+    me-&gt;txBufHead = lookAheadIdx;
+}</action>
+      <choice target="../../../2">
+       <guard brief="notEmpty">me-&gt;txBufHead != me-&gt;txBufTail</guard>
+       <action>if(me-&gt;txBufHead &gt; me-&gt;txBufTail) {
+    me-&gt;txLen = me-&gt;txBufHead - me-&gt;txBufTail;
+} else if(me-&gt;txBufHead &lt; me-&gt;txBufTail) {
+    me-&gt;txLen = TX_BUFFER_SIZE - me-&gt;txBufTail;
+}
+
+HAL_UART_Transmit_DMA(me-&gt;pHandle, &amp;(me-&gt;txBuffer[me-&gt;txBufTail]), me-&gt;txLen);
+</action>
+       <choice_glyph conn="43,23,5,1,17,26,-4">
+        <action box="1,-2,10,2"/>
+       </choice_glyph>
+      </choice>
+      <choice>
+       <guard>else</guard>
+       <choice_glyph conn="43,23,4,-1,5,7">
+        <action box="1,3,10,2"/>
+       </choice_glyph>
+      </choice>
+      <tran_glyph conn="24,23,3,-1,19">
+       <action box="0,-2,18,2"/>
+      </tran_glyph>
+     </tran>
+     <state_glyph node="24,15,32,16"/>
+    </state>
+    <state name="TRANSMITTING">
+     <tran trig="TRANSMIT_DONE">
+      <action>me-&gt;txBufTail = (me-&gt;txBufTail + me-&gt;txLen) % TX_BUFFER_SIZE;</action>
+      <choice target="../../../1">
+       <guard brief="isDone">me-&gt;txBufHead == me-&gt;txBufTail</guard>
+       <choice_glyph conn="43,52,5,1,19,-31,-6">
+        <action box="1,-2,10,2"/>
+       </choice_glyph>
+      </choice>
+      <choice>
+       <guard>else</guard>
+       <action>if(me-&gt;txBufHead &gt; me-&gt;txBufTail) {
+    me-&gt;txLen = me-&gt;txBufHead - me-&gt;txBufTail;
+} else if(me-&gt;txBufHead &lt; me-&gt;txBufTail) {
+    me-&gt;txLen = TX_BUFFER_SIZE - me-&gt;txBufTail;
+}
+
+HAL_UART_Transmit_DMA(me-&gt;pHandle, &amp;(me-&gt;txBuffer[me-&gt;txBufTail]), me-&gt;txLen);
+</action>
+       <choice_glyph conn="43,52,4,-1,4,7">
+        <action box="1,2,10,2"/>
+       </choice_glyph>
+      </choice>
+      <tran_glyph conn="24,52,3,-1,19">
+       <action box="0,-2,15,2"/>
+      </tran_glyph>
+     </tran>
+     <tran trig="TRANSMIT_REQUEST">
+      <action>for(uint16_t i = 0; i &lt; Q_EVT_CAST(uartMsgEvt)-&gt;bufLen; i++) {
+    uint16_t lookAheadIdx = (me-&gt;txBufHead + 1) % TX_BUFFER_SIZE;
+    if(lookAheadIdx == me-&gt;txBufTail) {
+        /* buffer full */
+        break;
+    }
+    me-&gt;txBuffer[me-&gt;txBufHead] = Q_EVT_CAST(uartMsgEvt)-&gt;buf[i];
+    me-&gt;txBufHead = lookAheadIdx;
+}</action>
+      <tran_glyph conn="24,47,3,-1,19">
+       <action box="0,-2,18,2"/>
+      </tran_glyph>
+     </tran>
+     <state_glyph node="24,37,32,22"/>
+    </state>
+    <state_glyph node="15,9,51,60"/>
+   </state>
+   <state_diagram size="98,82"/>
+  </statechart>
+ </class>
+ <attribute name="AO_uart" type="QActive * const" visibility="0x00" properties="0x00">
+  <code>= &amp;l_uart.super;</code>
+ </attribute>
+ <operation name="UART_ctor" type="void" visibility="0x00" properties="0x00">
+  <parameter name="pHandle" type="UART_HandleTypeDef *"/>
+  <parameter name="pTxDMA" type="DMA_HandleTypeDef *"/>
+  <parameter name="pRxDMA" type="DMA_HandleTypeDef *"/>
+  <code>Q_ASSERT((pHandle != NULL) &amp;&amp; (pTxDMA != NULL) &amp;&amp; (pRxDMA != NULL));
+
+uart * const me = &amp;l_uart;
+me-&gt;pHandle = pHandle;
+me-&gt;pTxDMA = pTxDMA;
+me-&gt;pRxDMA = pRxDMA;
+
+QActive_ctor(&amp;me-&gt;super, Q_STATE_CAST(&amp;uart_initial));
+QACTIVE_START(&amp;me-&gt;super,
+              AO_UART_PRIORITY,
+              uartQueueSto,
+              Q_DIM(uartQueueSto),
+              (void *)0,
+              0U,
+              (void *)0);
+</code>
+ </operation>
+ <operation name="UART_send" type="bool" visibility="0x00" properties="0x00">
+  <parameter name="buf" type="uint8_t * const"/>
+  <parameter name="size" type="const uint16_t"/>
+  <code>Q_ASSERT(buf != NULL);
+int32_t remaining = size;
+uart * const me = &amp;l_uart;
+uint16_t idx = 0;
+
+while(remaining &gt; 0) {
+    uint16_t bytesToTransfer = (remaining &gt; DMA_BUFFER_SIZE) ? DMA_BUFFER_SIZE : remaining;
+
+    uartMsgEvt * pTxEvt = Q_NEW(uartMsgEvt, TRANSMIT_REQUEST_SIG);
+    memcpy(pTxEvt-&gt;buf, &amp;(buf[idx]), bytesToTransfer);
+    pTxEvt-&gt;bufLen = bytesToTransfer;
+    if(true != QACTIVE_POST_X(AO_uart, (QEvt *)pTxEvt, 0U, me)) {
+        return false;
+    }
+
+    remaining -= bytesToTransfer;
+    idx += bytesToTransfer;
+}
+
+return true;</code>
+ </operation>
+ <operation name="HAL_UART_TxCpltCallback" type="void" visibility="0x00" properties="0x00">
+  <parameter name="huart" type="UART_HandleTypeDef *"/>
+  <code>Q_ASSERT(huart != NULL);
+if(huart-&gt;Instance == USART2) {
+    uart * const me = &amp;l_uart;
+    QEvt * pEvt = Q_NEW(QEvt, TRANSMIT_DONE_SIG);
+    QACTIVE_POST(&amp;me-&gt;super, pEvt, (void *)0);
+}</code>
+ </operation>
+ <operation name="HAL_UARTEx_RxEventCallback" type="void" visibility="0x00" properties="0x00">
+  <parameter name="huart" type="UART_HandleTypeDef *"/>
+  <parameter name="size" type="uint16_t"/>
+  <code>Q_ASSERT(huart != NULL);
+static QSpyId const l_UART_RxEvent = { 0U };
+
+if(huart-&gt;Instance == USART2) {
+    uart * const me = &amp;l_uart;
+    if(size != me-&gt;old_rx_pos) {
+        uartMsgEvt * pRxEvt = Q_NEW(uartMsgEvt, RX_DATA_AVAILABLE_SIG);
+        memset(pRxEvt-&gt;buf, 0, DMA_BUFFER_SIZE);
+        if(size &gt; me-&gt;old_rx_pos) {
+            pRxEvt-&gt;bufLen = size - me-&gt;old_rx_pos;
+            memcpy(pRxEvt-&gt;buf, &amp;(me-&gt;rxDmaBuffer[me-&gt;old_rx_pos]), pRxEvt-&gt;bufLen);
+        } else {
+            pRxEvt-&gt;bufLen = DMA_BUFFER_SIZE - me-&gt;old_rx_pos + size;
+            size_t nByteToWrite = DMA_BUFFER_SIZE - me-&gt;old_rx_pos;
+            memcpy(pRxEvt-&gt;buf, &amp;(me-&gt;rxDmaBuffer[me-&gt;old_rx_pos]), nByteToWrite);
+            memcpy(&amp;(pRxEvt-&gt;buf[nByteToWrite]), &amp;(me-&gt;rxDmaBuffer[0]), size);
+        }
+        QACTIVE_POST(AO_uart, (QEvt *)pRxEvt, &amp;l_UART_RxEvent);
+    }
+    me-&gt;old_rx_pos = size;
+}</code>
+ </operation>
+ <directory name=".">
+  <file name="uart.c">
+   <text>#include &quot;stm32g4xx_hal.h&quot;
+#include &quot;qpc.h&quot;
+#include &quot;uart.h&quot;
+#include &quot;stdio.h&quot;
+#include &quot;string.h&quot;
+#include &quot;appPubList.h&quot;
+
+Q_DEFINE_THIS_FILE
+
+#define TX_BUFFER_SIZE       (512)
+
+/* Inernal signals */
+enum uartSignal {
+    TICK_SIG = MAX_PUB_SIG,
+    TRANSMIT_REQUEST_SIG,
+    TRANSMIT_DONE_SIG,
+    RX_DATA_AVAILABLE_SIG,
+};
+
+$declare(app::driver::uart::uart)
+
+/* Local Object */
+static uart l_uart;
+static QEvt const * uartQueueSto[8];
+
+/* Global Object: opaque pointer to AO */
+$define(app::driver::uart::AO_uart)
+
+/* active object constructor */
+$define(app::driver::uart::UART_ctor)
+
+$define(app::driver::uart::uart)
+
+$define(app::driver::uart::UART_send)
+
+$define(app::driver::uart::HAL_UART_TxCpltCallback)
+$define(app::driver::uart::HAL_UARTEx_RxEventCallback)
+</text>
+  </file>
+  <file name="uart.h">
+   <text>#ifndef APP_DRIVER_UART_H
+#define APP_DRIVER_UART_H
+
+#define DMA_BUFFER_SIZE            (8)
+
+$declare(app::driver::uart::event::uartMsgEvt)
+
+/* opaque pointers to active object */
+$declare(app::driver::uart::AO_uart)
+$declare(app::driver::uart::UART_ctor)
+$declare(app::driver::uart::UART_send)
+
+#endif /* APP_DRIVER_UART_H */
+</text>
+  </file>
+ </directory>
+</package>

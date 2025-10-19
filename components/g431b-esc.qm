@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<model version="7.0.1" links="0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.state-machine.com/qm/qm7.xsd">
+ <framework name="qpc"/>
+ <package name="app" stereotype="0x02">
+  <package name="driver" stereotype="0x02">
+   <extern_package file="./app/driver/uart/uart.qmp"/>
+  </package>
+ </package>
+ <directory name=".">
+  <file name="appPubList.h">
+   <text>#ifndef APP_PUB_LIST_H
+#define APP_PUB_LIST_H
+
+enum PublicSignals {
+    /* Common Event across AO */
+    GET_OBJECT_DICTIONARY_SIG = Q_USER_SIG,
+    GET_FUNC_DICTIONARY_SIG,
+    GET_SIGNAL_DICTIONARY_SIG,
+
+    MAX_PUB_SIG    /* Last Published Signal.  This is also the start of AO specific signals */
+};
+
+
+enum ao_priority {
+    /* Increasing priority */
+    IDLE_PRIORITY = 0U,
+    AO_UART_PRIORITY,
+};
+
+
+#endif /* APP_PUB_LIST_H */
+</text>
+  </file>
+ </directory>
+</model>
