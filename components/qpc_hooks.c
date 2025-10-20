@@ -12,7 +12,7 @@
 #include "main.h"
 #include "uart.h"
 
-static QSpyId const l_Tim1Tick_Handler = { 0U };
+static QSpyId const l_Tim2Tick_Handler = { 0U };
 /*
  * small size pool
  */
@@ -84,17 +84,17 @@ void QF_onStartup(void)
 {
     tick_ms = 0U;
     /*
-     * Start TIM1
+     * Start TIM2
      */
-    extern TIM_HandleTypeDef htim1;
-    HAL_TIM_Base_Start_IT(&htim1);
+    extern TIM_HandleTypeDef htim2;
+    HAL_TIM_Base_Start_IT(&htim2);
 
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
-    if (htim->Instance == TIM1) {
+    if (htim->Instance == TIM2) {
         tick_ms++;
-        QTIMEEVT_TICK_X(0U, &l_Tim1Tick_Handler);
+        QTIMEEVT_TICK_X(0U, &l_Tim2Tick_Handler);
     }
 }
 
