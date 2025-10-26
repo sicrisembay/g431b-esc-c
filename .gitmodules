@@ -1,3 +1,7 @@
 [submodule "components/qpc"]
 	path = components/qpc
 	url = https://github.com/QuantumLeaps/qpc.git
+[submodule "components/canopen/CANopenNode"]
+	path = components/canopen/CANopenNode
+	url = https://github.com/sicrisembay/CANopenNode.git
+	branch = master

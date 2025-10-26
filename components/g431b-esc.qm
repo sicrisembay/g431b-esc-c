@@ -5,6 +5,7 @@
   <package name="driver" stereotype="0x02">
    <extern_package file="./app/driver/uart/uart.qmp"/>
   </package>
+  <extern_package file="./canopen/canopen.qmp"/>
  </package>
  <directory name=".">
   <file name="appPubList.h">
@@ -21,10 +22,17 @@ enum PublicSignals {
 };
 
 
+enum loggerTraceRecord {
+    CANOPEN_DEBUG_RECORD = QS_USER,
+    CANOPEN_INFO_RECORD,
+    CANOPEN_ERROR_RECORD,
+};
+
 enum ao_priority {
     /* Increasing priority */
     IDLE_PRIORITY = 0U,
     AO_UART_PRIORITY,
+    AO_CANOPEN_PRIORITY,
 };
 
 

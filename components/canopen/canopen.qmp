@@ -1,0 +1,330 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<package name="canopen" stereotype="0x02" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.state-machine.com/qm/qm7.xsd">
+ <class name="canopen" superclass="qpc::QActive">
+  <attribute name="timerTick" type="QTimeEvt" visibility="0x02" properties="0x00"/>
+  <attribute name="timerFastTick" type="QTimeEvt" visibility="0x02" properties="0x00"/>
+  <attribute name="co" type="CO_t *" visibility="0x02" properties="0x00"/>
+  <attribute name="CANptr" type="void *" visibility="0x02" properties="0x00"/>
+  <attribute name="irq" type="IRQn_Type" visibility="0x02" properties="0x00"/>
+  <attribute name="activeNodeId" type="uint8_t" visibility="0x02" properties="0x00"/>
+  <attribute name="pendingBitRate" type="uint16_t" visibility="0x02" properties="0x00"/>
+  <attribute name="timestamp_us_prev" type="uint32_t" visibility="0x02" properties="0x00"/>
+  <attribute name="fast_timestamp_us_prev" type="uint32_t" visibility="0x02" properties="0x00"/>
+  <statechart properties="0x02">
+   <initial target="../1">
+    <action>QS_OBJ_DICTIONARY(&amp;l_canopen);
+
+me-&gt;co = NULL;</action>
+    <initial_glyph conn="18,6,5,0,4,4">
+     <action box="0,-2,10,2"/>
+    </initial_glyph>
+   </initial>
+   <state name="ALLOCATE">
+    <entry>CO_config_t * config_ptr = NULL;
+uint32_t heapMemoryUsed;
+me-&gt;co = CO_new(config_ptr, &amp;heapMemoryUsed);
+
+if(me-&gt;co != NULL) {
+    QS_BEGIN_ID(CANOPEN_INFO_RECORD, AO_canopen-&gt;prio);
+        QS_STR(&quot;CANopen allocated heap: &quot;);
+        QS_U32(6, heapMemoryUsed);
+    QS_END();
+    QEvt * pEvt = Q_NEW(QEvt, OK_SIG);
+    QACTIVE_POST(&amp;me-&gt;super, pEvt, &amp;me-&gt;super);
+} else {
+    QS_BEGIN_ID(CANOPEN_ERROR_RECORD, AO_canopen-&gt;prio);
+        QS_STR(&quot;CANopen allocation failed!&quot;);
+    QS_END();
+    QEvt * pEvt = Q_NEW(QEvt, ERROR_SIG);
+    QACTIVE_POST(&amp;me-&gt;super, pEvt, &amp;me-&gt;super);
+}
+</entry>
+    <tran trig="ERROR" target="../../2">
+     <tran_glyph conn="18,18,3,1,48,58,-10">
+      <action box="0,-2,10,2"/>
+     </tran_glyph>
+    </tran>
+    <tran trig="OK" target="../../3">
+     <tran_glyph conn="18,21,3,1,42,10,-4">
+      <action box="0,-2,10,2"/>
+     </tran_glyph>
+    </tran>
+    <state_glyph node="18,10,38,13">
+     <entry box="0,3,6,2"/>
+    </state_glyph>
+   </state>
+   <state name="RESET">
+    <entry>CO_CANsetConfigurationMode((void *)me-&gt;CANptr);
+CO_delete(me-&gt;co);
+
+QS_BEGIN_ID(CANOPEN_INFO_RECORD, (void *)0);
+    QS_STR(&quot;CANopen device reset\r\n&quot;);
+QS_END();
+
+QS_FLUSH();
+
+NVIC_SystemReset();
+</entry>
+    <state_glyph node="18,68,38,11">
+     <entry box="0,3,6,2"/>
+    </state_glyph>
+   </state>
+   <state name="COMM_INIT">
+    <entry>CO_ReturnError_t err = CO_ERROR_NO;
+
+me-&gt;activeNodeId = CANOPEN_DEVICE_NODE_ID;
+me-&gt;pendingBitRate = CANOPEN_DEVICE_BITRATE_KBPS;
+
+me-&gt;co-&gt;CANmodule-&gt;CANnormal = false;
+me-&gt;co-&gt;CANmodule-&gt;irq = me-&gt;irq;
+
+/* Enter CAN configuration. */
+me-&gt;co-&gt;CANmodule-&gt;CANptr = me-&gt;CANptr;
+CO_CANmodule_disable(me-&gt;co-&gt;CANmodule);
+
+/* initialize CANopen */
+err = CO_CANinit(me-&gt;co, me-&gt;CANptr, me-&gt;pendingBitRate);
+if (err != CO_ERROR_NO) {
+    QS_BEGIN_ID(CANOPEN_ERROR_RECORD, AO_canopen-&gt;prio);
+        QS_STR(&quot;CANopen initialization failed: &quot;);
+        QS_I16(6, err);
+    QS_END();
+    QEvt * pEvt = Q_NEW(QEvt, ERROR_SIG);
+    QACTIVE_POST(&amp;me-&gt;super, pEvt, &amp;me-&gt;super);
+    return Q_HANDLED();
+}
+
+uint32_t errInfo = 0;
+
+err = CO_CANopenInit(me-&gt;co,               /* CANopen object */
+                     NULL,                 /* alternate NMT */
+                     NULL,                 /* alternate em */
+                     OD,                   /* Object dictionary */
+                     OD_STATUS_BITS,       /* Optional OD_statusBits */
+                     NMT_CONTROL,          /* CO_NMT_control_t */
+                     FIRST_HB_TIME,        /* firstHBTime_ms */
+                     SDO_SRV_TIMEOUT_TIME, /* SDOserverTimeoutTime_ms */
+                     SDO_CLI_TIMEOUT_TIME, /* SDOclientTimeoutTime_ms */
+                     SDO_CLI_BLOCK,        /* SDOclientBlockTransfer */
+                     me-&gt;activeNodeId,
+                     &amp;errInfo);
+
+if (err != CO_ERROR_NO &amp;&amp; err != CO_ERROR_NODE_ID_UNCONFIGURED_LSS) {
+    if (err == CO_ERROR_OD_PARAMETERS) {
+        QS_BEGIN_ID(CANOPEN_ERROR_RECORD, AO_canopen-&gt;prio);
+            QS_STR(&quot;CANopen Error: Object Dictionary entry: &quot;);
+            QS_U32(10, errInfo);
+        QS_END();
+    } else {
+        QS_BEGIN_ID(CANOPEN_ERROR_RECORD, AO_canopen-&gt;prio);
+            QS_STR(&quot;CANopen initialization failed: &quot;);
+            QS_I16(10, err);
+        QS_END();
+    }
+    QEvt * pEvt = Q_NEW(QEvt, ERROR_SIG);
+    QACTIVE_POST(&amp;me-&gt;super, pEvt, &amp;me-&gt;super);
+    return Q_HANDLED();
+}
+
+err = CO_CANopenInitPDO(me-&gt;co, me-&gt;co-&gt;em, OD, me-&gt;activeNodeId, &amp;errInfo);
+if (err != CO_ERROR_NO &amp;&amp; err != CO_ERROR_NODE_ID_UNCONFIGURED_LSS) {
+    if (err == CO_ERROR_OD_PARAMETERS) {
+        QS_BEGIN_ID(CANOPEN_ERROR_RECORD, AO_canopen-&gt;prio);
+            QS_STR(&quot;CANopen Error: Object Dictionary entry: &quot;);
+            QS_U32(10, errInfo);
+        QS_END();
+    } else {
+        QS_BEGIN_ID(CANOPEN_ERROR_RECORD, AO_canopen-&gt;prio);
+            QS_STR(&quot;CANopen PDO initialization failed: &quot;);
+            QS_I16(10, err);
+        QS_END();
+    }
+    QEvt * pEvt = Q_NEW(QEvt, ERROR_SIG);
+    QACTIVE_POST(&amp;me-&gt;super, pEvt, &amp;me-&gt;super);
+    return Q_HANDLED();
+}
+
+QEvt * pEvt = Q_NEW(QEvt, OK_SIG);
+QACTIVE_POST(&amp;me-&gt;super, pEvt, &amp;me-&gt;super);
+</entry>
+    <tran trig="ERROR" target="../../2">
+     <tran_glyph conn="18,36,3,1,46,38,-8">
+      <action box="0,-2,10,2"/>
+     </tran_glyph>
+    </tran>
+    <tran trig="OK" target="../../4">
+     <tran_glyph conn="18,40,3,1,40,10,-2">
+      <action box="0,-2,10,2"/>
+     </tran_glyph>
+    </tran>
+    <state_glyph node="18,26,38,18">
+     <entry box="0,3,6,2"/>
+    </state_glyph>
+   </state>
+   <state name="RUNNING">
+    <entry>/* start CAN */
+CO_CANsetNormalMode(me-&gt;co-&gt;CANmodule);
+
+me-&gt;timestamp_us_prev = TIMER_1us_count();
+me-&gt;fast_timestamp_us_prev = TIMER_1us_count();
+
+QTimeEvt_armX(&amp;me-&gt;timerTick, 10, 10);
+QTimeEvt_armX(&amp;me-&gt;timerFastTick, 1, 1);
+</entry>
+    <exit>QTimeEvt_disarm(&amp;me-&gt;timerTick);
+QTimeEvt_disarm(&amp;me-&gt;timerFastTick);
+</exit>
+    <tran trig="TICK">
+     <action>CO_NMT_reset_cmd_t reset = CO_RESET_NOT;
+
+uint32_t timeDifference_us = 0U;
+const uint32_t timestamp_us = TIMER_1us_count();
+
+if(timestamp_us &gt; me-&gt;timestamp_us_prev) {
+    timeDifference_us = timestamp_us - me-&gt;timestamp_us_prev;
+} else {
+    timeDifference_us = (0xFFFFFFFFU - me-&gt;timestamp_us_prev) + timestamp_us + 1U;
+}
+me-&gt;timestamp_us_prev = timestamp_us;
+
+reset = CO_process(me-&gt;co, false, timeDifference_us, NULL);</action>
+     <choice target="../../../2">
+      <guard brief="Reset Device">reset == CO_RESET_APP</guard>
+      <choice_glyph conn="33,55,5,1,29,17,-6">
+       <action box="2,-2,12,2"/>
+      </choice_glyph>
+     </choice>
+     <choice target="../../../3">
+      <guard brief="Reset Comm">CO_RESET_COMM == reset</guard>
+      <choice_glyph conn="33,55,4,1,-3,29,-14,-6">
+       <action box="2,-5,12,2"/>
+      </choice_glyph>
+     </choice>
+     <choice>
+      <guard>else</guard>
+      <choice_glyph conn="33,55,4,-1,3,8">
+       <action box="2,1,5,2"/>
+      </choice_glyph>
+     </choice>
+     <tran_glyph conn="18,55,3,-1,15">
+      <action box="0,-2,10,2"/>
+     </tran_glyph>
+    </tran>
+    <tran trig="FAST_TICK">
+     <action>uint32_t timeDifference_us = 0U;
+const uint32_t timestamp_us = TIMER_1us_count();
+
+if(timestamp_us &gt; me-&gt;fast_timestamp_us_prev) {
+    timeDifference_us = timestamp_us - me-&gt;fast_timestamp_us_prev;
+} else {
+    timeDifference_us = (0xFFFFFFFFU - me-&gt;fast_timestamp_us_prev) + timestamp_us + 1U;
+}
+me-&gt;fast_timestamp_us_prev = timestamp_us;
+
+
+if (!me-&gt;co-&gt;nodeIdUnconfigured &amp;&amp; me-&gt;co-&gt;CANmodule-&gt;CANnormal) {
+    bool syncWas = false;
+    /* get time difference since last function call */
+#if (CO_CONFIG_SYNC) &amp; CO_CONFIG_SYNC_ENABLE
+    syncWas = CO_process_SYNC(me-&gt;co, timeDifference_us, NULL);
+#endif
+#if (CO_CONFIG_PDO) &amp; CO_CONFIG_RPDO_ENABLE
+    CO_process_RPDO(me-&gt;co, syncWas, timeDifference_us, NULL);
+#endif
+#if (CO_CONFIG_PDO) &amp; CO_CONFIG_TPDO_ENABLE
+    CO_process_TPDO(me-&gt;co, syncWas, timeDifference_us, NULL);
+#endif
+}</action>
+     <tran_glyph conn="18,61,3,-1,12">
+      <action box="0,-2,10,2"/>
+     </tran_glyph>
+    </tran>
+    <state_glyph node="18,46,38,19">
+     <entry box="0,3,6,2"/>
+     <exit box="0,5,6,2"/>
+    </state_glyph>
+   </state>
+   <state_diagram size="80,81"/>
+  </statechart>
+ </class>
+ <attribute name="AO_canopen" type="QActive * const" visibility="0x00" properties="0x00">
+  <code>= &amp;l_canopen.super;</code>
+ </attribute>
+ <operation name="CANOPEN_ctor" type="void" visibility="0x00" properties="0x00">
+  <parameter name="fdcan_handle" type="FDCAN_HandleTypeDef *"/>
+  <parameter name="irq" type="IRQn_Type"/>
+  <code>canopen * const me = &amp;l_canopen;
+
+me-&gt;CANptr = (void *)fdcan_handle;
+me-&gt;irq = irq;
+
+QTimeEvt_ctorX(&amp;me-&gt;timerTick, &amp;me-&gt;super, TICK_SIG, 0U);
+QTimeEvt_ctorX(&amp;me-&gt;timerFastTick, &amp;me-&gt;super, FAST_TICK_SIG, 0U);
+
+QActive_ctor(&amp;me-&gt;super, Q_STATE_CAST(&amp;canopen_initial));
+QACTIVE_START(&amp;me-&gt;super,
+              AO_CANOPEN_PRIORITY,
+              canopenQueueSto,
+              Q_DIM(canopenQueueSto),
+              (void *)0,
+              0U,
+              (void *)0);
+</code>
+ </operation>
+ <directory name=".">
+  <file name="AO_canopen.c">
+   <text>#include &quot;stm32g4xx_hal.h&quot;
+#include &quot;qpc.h&quot;
+#include &quot;appPubList.h&quot;
+#include &quot;AO_canopen.h&quot;
+#include &quot;CANopen.h&quot;
+#include &quot;OD.h&quot;
+#include &quot;main.h&quot;
+
+/* Inernal signals */
+enum canopenSignal {
+    TICK_SIG = MAX_PUB_SIG,
+    FAST_TICK_SIG,
+    OK_SIG,
+    ERROR_SIG,
+};
+
+/* default values for CO_CANopenInit() */
+#define NMT_CONTROL   CO_NMT_STARTUP_TO_OPERATIONAL     \
+                    | CO_NMT_ERR_ON_ERR_REG             \
+                    | CO_ERR_REG_GENERIC_ERR            \
+                    | CO_ERR_REG_COMMUNICATION
+
+#define FIRST_HB_TIME        500
+#define SDO_SRV_TIMEOUT_TIME 1000
+#define SDO_CLI_TIMEOUT_TIME 500
+#define SDO_CLI_BLOCK        false
+#define OD_STATUS_BITS       NULL
+
+$declare(app::canopen::canopen)
+
+static canopen l_canopen;
+static QEvt const * canopenQueueSto[8];
+
+$define(app::canopen::AO_canopen)
+
+$define(app::canopen::canopen)
+
+$define(app::canopen::CANOPEN_ctor)
+</text>
+  </file>
+  <file name="AO_canopen.h">
+   <text>#ifndef AO_CANOPEN_H
+#define AO_CANOPEN_H
+
+#define CANOPEN_DEVICE_NODE_ID        (10)
+#define CANOPEN_DEVICE_BITRATE_KBPS   (1000)
+
+$declare(app::canopen::AO_canopen)
+
+$declare(app::canopen::CANOPEN_ctor)
+
+#endif</text>
+  </file>
+ </directory>
+</package>

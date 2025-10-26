@@ -52,6 +52,9 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/components}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/components/qpc/include}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/components/qpc/ports/arm-cm/qxk/gnu}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/components/canopen}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/components/canopen/CANopenNode}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/components/app}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/components/app/driver/uart}&quot;"/>
 								</option>
 								<inputType id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c.1178279612" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c"/>
@@ -79,8 +82,8 @@
 						</toolChain>
 					</folderInfo>
 					<sourceEntries>
-						<entry excluding="qpc/zephyr|qpc/test|qpc/src/qv|qpc/src/qk|qpc/ports/arm-cm/qxk/llvm|qpc/ports/arm-cm/qxk/iar|qpc/ports/arm-cm/qxk/config|qpc/ports/arm-cm/qxk/armclang|qpc/ports/arm-cm/qv|qpc/ports/arm-cm/qutest|qpc/ports/arm-cm/qk|qpc/ports/zephyr|qpc/ports/win32-qv|qpc/ports/win32-qutest|qpc/ports/win32|qpc/ports/uc-os2|qpc/ports/threadx|qpc/ports/risc-v|qpc/ports/qube|qpc/ports/qep-only|qpc/ports/posix-qv|qpc/ports/posix-qutest|qpc/ports/posix|qpc/ports/msp430|qpc/ports/lint-plus2|qpc/ports/lint-plus|qpc/ports/freertos|qpc/ports/embos|qpc/ports/config|qpc/ports/arm-cr|qpc/examples|qpc/3rd_party" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="components"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Core"/>
+						<entry excluding="canopen/CANopenNode/storage|canopen/CANopenNode/extra|canopen/CANopenNode/doc|canopen/CANopenNode/309|canopen/CANopenNode/305|canopen/CANopenNode/304|canopen/CANopenNode/303|canopen/CANopenNode/example|qpc/zephyr|qpc/test|qpc/src/qv|qpc/src/qk|qpc/ports/arm-cm/qxk/llvm|qpc/ports/arm-cm/qxk/iar|qpc/ports/arm-cm/qxk/config|qpc/ports/arm-cm/qxk/armclang|qpc/ports/arm-cm/qv|qpc/ports/arm-cm/qutest|qpc/ports/arm-cm/qk|qpc/ports/zephyr|qpc/ports/win32-qv|qpc/ports/win32-qutest|qpc/ports/win32|qpc/ports/uc-os2|qpc/ports/threadx|qpc/ports/risc-v|qpc/ports/qube|qpc/ports/qep-only|qpc/ports/posix-qv|qpc/ports/posix-qutest|qpc/ports/posix|qpc/ports/msp430|qpc/ports/lint-plus2|qpc/ports/lint-plus|qpc/ports/freertos|qpc/ports/embos|qpc/ports/config|qpc/ports/arm-cr|qpc/examples|qpc/3rd_party" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="components"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Drivers"/>
 					</sourceEntries>
 				</configuration>
@@ -103,4 +106,5 @@
 		</scannerConfigBuildInfo>
 	</storageModule>
 	<storageModule moduleId="org.eclipse.cdt.make.core.buildtargets"/>
+	<storageModule moduleId="refreshScope"/>
 </cproject>

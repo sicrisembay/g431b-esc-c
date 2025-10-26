@@ -11,8 +11,10 @@
 #include "appPubList.h"
 #include "main.h"
 #include "uart.h"
+#include "string.h"
+#include "AO_canopen.h"
 
-static QSpyId const l_Tim2Tick_Handler = { 0U };
+static QSpyId const l_Tim3Tick_Handler = { 0U };
 /*
  * small size pool
  */
@@ -76,6 +78,9 @@ void QPC_start(void)
     extern DMA_HandleTypeDef hdma_usart2_tx;
     UART_ctor(&huart2, &hdma_usart2_tx, &hdma_usart2_rx);
 
+    extern FDCAN_HandleTypeDef hfdcan1;
+    CANOPEN_ctor(&hfdcan1, FDCAN1_IT0_IRQn);
+
     QF_run();
 }
 
@@ -83,18 +88,19 @@ void QPC_start(void)
 void QF_onStartup(void)
 {
     tick_ms = 0U;
-    /*
-     * Start TIM2
-     */
-    extern TIM_HandleTypeDef htim2;
-    HAL_TIM_Base_Start_IT(&htim2);
 
+    /*
+     * Start TIM3
+     */
+    extern TIM_HandleTypeDef htim3;
+    HAL_TIM_Base_Start_IT(&htim3);
+    __HAL_DBGMCU_FREEZE_TIM3();
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
-    if (htim->Instance == TIM2) {
+    if (htim->Instance == TIM3) {
         tick_ms++;
-        QTIMEEVT_TICK_X(0U, &l_Tim2Tick_Handler);
+        QTIMEEVT_TICK_X(0U, &l_Tim3Tick_Handler);
     }
 }
 
@@ -178,6 +184,13 @@ uint8_t QS_onStartup(void const *arg)
     (void)arg;  // unused parameter
     QS_initBuf(qsTxBuf, sizeof(qsTxBuf));
     QS_rxInitBuf(qsRxBuf, sizeof(qsRxBuf));
+
+    QS_FILTER_ON(QS_QEP_STATE_ENTRY);
+    QS_FILTER_ON(QS_UA_RECORDS);
+
+    QS_LOC_FILTER(-QS_ALL_IDS);
+    QS_LOC_FILTER(AO_CANOPEN_PRIORITY);
+
 
     return (uint8_t)1; /* return success */
 }
