@@ -54,5 +54,10 @@ void CANOPEN_ctor(
     FDCAN_HandleTypeDef * fdcan_handle,
     IRQn_Type irq);
 //$enddecl${app::canopen::CANOPEN_ctor} ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//$declare${app::canopen::CANOPEN_post_rxEvt} vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+
+//${app::canopen::CANOPEN_post_rxEvt} ........................................
+void CANOPEN_post_rxEvt(void);
+//$enddecl${app::canopen::CANOPEN_post_rxEvt} ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 #endif

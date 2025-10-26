@@ -16,7 +16,7 @@
 
         Created:      24/10/2025 10:00:24 pm
         Created By:   
-        Modified:     26/10/2025 11:55:39 am
+        Modified:     26/10/2025 6:15:07 pm
         Modified By:  
 
     Device Info:
@@ -54,7 +54,7 @@
 #define OD_CNT_ARR_1003 16
 #define OD_CNT_ARR_1010 4
 #define OD_CNT_ARR_1011 4
-#define OD_CNT_ARR_1016 8
+#define OD_CNT_ARR_1016 1
 
 
 /*******************************************************************************

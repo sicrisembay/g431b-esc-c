@@ -174,7 +174,7 @@ QTimeEvt_armX(&amp;me-&gt;timerFastTick, 1, 1);
     <exit>QTimeEvt_disarm(&amp;me-&gt;timerTick);
 QTimeEvt_disarm(&amp;me-&gt;timerFastTick);
 </exit>
-    <tran trig="TICK">
+    <tran trig="TICK, CAN_RX">
      <action>CO_NMT_reset_cmd_t reset = CO_RESET_NOT;
 
 uint32_t timeDifference_us = 0U;
@@ -207,7 +207,7 @@ reset = CO_process(me-&gt;co, false, timeDifference_us, NULL);</action>
       </choice_glyph>
      </choice>
      <tran_glyph conn="18,55,3,-1,15">
-      <action box="0,-2,10,2"/>
+      <action box="0,-2,13,2"/>
      </tran_glyph>
     </tran>
     <tran trig="FAST_TICK">
@@ -271,6 +271,11 @@ QACTIVE_START(&amp;me-&gt;super,
               (void *)0);
 </code>
  </operation>
+ <operation name="CANOPEN_post_rxEvt" type="void" visibility="0x00" properties="0x00">
+  <code>QEvt * pEvt = Q_NEW(QEvt, CAN_RX_SIG);
+QACTIVE_POST(AO_canopen, (QEvt *)pEvt, AO_canopen);
+</code>
+ </operation>
  <directory name=".">
   <file name="AO_canopen.c">
    <text>#include &quot;stm32g4xx_hal.h&quot;
@@ -285,6 +290,7 @@ QACTIVE_START(&amp;me-&gt;super,
 enum canopenSignal {
     TICK_SIG = MAX_PUB_SIG,
     FAST_TICK_SIG,
+    CAN_RX_SIG,
     OK_SIG,
     ERROR_SIG,
 };
@@ -311,6 +317,7 @@ $define(app::canopen::AO_canopen)
 $define(app::canopen::canopen)
 
 $define(app::canopen::CANOPEN_ctor)
+$define(app::canopen::CANOPEN_post_rxEvt)
 </text>
   </file>
   <file name="AO_canopen.h">
@@ -323,6 +330,7 @@ $define(app::canopen::CANOPEN_ctor)
 $declare(app::canopen::AO_canopen)
 
 $declare(app::canopen::CANOPEN_ctor)
+$declare(app::canopen::CANOPEN_post_rxEvt)
 
 #endif</text>
   </file>

@@ -47,6 +47,7 @@
 enum canopenSignal {
     TICK_SIG = MAX_PUB_SIG,
     FAST_TICK_SIG,
+    CAN_RX_SIG,
     OK_SIG,
     ERROR_SIG,
 };
@@ -328,8 +329,9 @@ static QState canopen_RUNNING(canopen * const me, QEvt const * const e) {
             status_ = Q_HANDLED();
             break;
         }
-        //${app::canopen::canopen::SM::RUNNING::TICK}
-        case TICK_SIG: {
+        //${app::canopen::canopen::SM::RUNNING::TICK, CAN_RX}
+        case TICK_SIG: // intentionally fall through
+        case CAN_RX_SIG: {
             CO_NMT_reset_cmd_t reset = CO_RESET_NOT;
 
             uint32_t timeDifference_us = 0U;
@@ -343,15 +345,15 @@ static QState canopen_RUNNING(canopen * const me, QEvt const * const e) {
             me->timestamp_us_prev = timestamp_us;
 
             reset = CO_process(me->co, false, timeDifference_us, NULL);
-            //${app::canopen::canopen::SM::RUNNING::TICK::[ResetDevice]}
+            //${app::canopen::canopen::SM::RUNNING::TICK, CAN_RX::[ResetDevice]}
             if (reset == CO_RESET_APP) {
                 status_ = Q_TRAN(&canopen_RESET);
             }
-            //${app::canopen::canopen::SM::RUNNING::TICK::[ResetComm]}
+            //${app::canopen::canopen::SM::RUNNING::TICK, CAN_RX::[ResetComm]}
             else if (CO_RESET_COMM == reset) {
                 status_ = Q_TRAN(&canopen_COMM_INIT);
             }
-            //${app::canopen::canopen::SM::RUNNING::TICK::[else]}
+            //${app::canopen::canopen::SM::RUNNING::TICK, CAN_RX::[else]}
             else {
                 status_ = Q_HANDLED();
             }
@@ -421,4 +423,13 @@ void CANOPEN_ctor(
 
 }
 //$enddef${app::canopen::CANOPEN_ctor} ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//$define${app::canopen::CANOPEN_post_rxEvt} vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+
+//${app::canopen::CANOPEN_post_rxEvt} ........................................
+void CANOPEN_post_rxEvt(void) {
+    QEvt * pEvt = Q_NEW(QEvt, CAN_RX_SIG);
+    QACTIVE_POST(AO_canopen, (QEvt *)pEvt, AO_canopen);
+
+}
+//$enddef${app::canopen::CANOPEN_post_rxEvt} ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

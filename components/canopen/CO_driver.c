@@ -23,6 +23,8 @@
 #include "stm32g4xx_hal.h"
 #include "qpc.h"
 #include "301/CO_driver.h"
+#include "appPubList.h"
+#include "AO_canopen.h"
 
 Q_DEFINE_THIS_FILE
 
@@ -54,7 +56,8 @@ CO_CANsetNormalMode(CO_CANmodule_t* CANmodule) {
         Q_ASSERT(HAL_FDCAN_Start(hfdcan) == HAL_OK);
         Q_ASSERT(HAL_FDCAN_ActivateNotification(hfdcan,
                 (FDCAN_IT_RX_FIFO0_NEW_MESSAGE | FDCAN_IT_TX_FIFO_EMPTY |
-                FDCAN_IT_TX_ABORT_COMPLETE | FDCAN_IT_ERROR_PASSIVE | FDCAN_IT_ERROR_WARNING | FDCAN_IT_BUS_OFF),
+                FDCAN_IT_TX_ABORT_COMPLETE | FDCAN_IT_ERROR_PASSIVE |
+                FDCAN_IT_ERROR_WARNING | FDCAN_IT_BUS_OFF | FDCAN_IT_RX_FIFO0_MESSAGE_LOST),
                 FDCAN_TX_BUFFER0) == HAL_OK);
 
         CANmodule->CANnormal = true;
@@ -220,6 +223,9 @@ CO_CANsend(CO_CANmodule_t* CANmodule, CO_CANtx_t* buffer) {
         if (!CANmodule->firstCANtxMessage) {
             /* don't set error, if bootup message is still on buffers */
             CANmodule->CANerrorStatus |= CO_CAN_ERRTX_OVERFLOW;
+            QS_BEGIN_ID(CANOPEN_ERROR_RECORD, AO_canopen->prio);
+                QS_STR("Error: Tx overflow");
+            QS_END();
         }
         err = CO_ERROR_TX_OVERFLOW;
     }
@@ -241,11 +247,13 @@ CO_CANsend(CO_CANmodule_t* CANmodule, CO_CANtx_t* buffer) {
         txHeader.DataLength = buffer->DLC;
 
         FDCAN_HandleTypeDef * hfdcan = (FDCAN_HandleTypeDef *)CANmodule->CANptr;
-        Q_ASSERT(HAL_OK == HAL_FDCAN_AddMessageToTxFifoQ(
-                    hfdcan,
-                    &txHeader,
-                    buffer->data
-                    ));
+        if(HAL_OK != HAL_FDCAN_AddMessageToTxFifoQ(hfdcan, &txHeader, buffer->data)) {
+            CANmodule->CANerrorStatus |= CO_CAN_ERRTX_OVERFLOW;
+            QS_BEGIN_ID(CANOPEN_ERROR_RECORD, AO_canopen->prio);
+                QS_STR("Error: Tx overflow");
+            QS_END();
+            err = CO_ERROR_TX_OVERFLOW;
+        }
     }
     /* if no buffer is free, message will be sent by interrupt */
     else {
@@ -288,26 +296,52 @@ CO_CANclearPendingSyncPDOs(CO_CANmodule_t* CANmodule) {
 
     if (tpdoDeleted != 0U) {
         CANmodule->CANerrorStatus |= CO_CAN_ERRTX_PDO_LATE;
+        QS_BEGIN_ID(CANOPEN_ERROR_RECORD, AO_canopen->prio);
+            QS_STR("Error: Late Tx PDO");
+        QS_END();
     }
 }
 
-/* Get error counters from the module. If necessary, function may use different way to determine errors. */
-static uint16_t rxErrors = 0, txErrors = 0, overflow = 0;
+typedef union {
+    uint32_t all;
+    struct {
+        uint32_t tec : 8;
+        uint32_t rec : 8;
+        uint32_t warning_error_flag : 1;
+        uint32_t rx_passive_error_flag : 1;
+        uint32_t bus_off_flag : 1;
+        uint32_t reserved : 13;
+    } bits;
+} can_error_t;
+
+static can_error_t can_error;
 
 void
 CO_CANmodule_process(CO_CANmodule_t* CANmodule) {
-    uint32_t err;
+    Q_ASSERT(CANmodule != NULL);
+    FDCAN_HandleTypeDef * hfdcan = (FDCAN_HandleTypeDef *)CANmodule->CANptr;
+    Q_ASSERT(hfdcan != NULL);
+    FDCAN_ErrorCountersTypeDef errorCounters;
+    FDCAN_ProtocolStatusTypeDef protocolStatus;
+    HAL_FDCAN_GetErrorCounters(hfdcan, &errorCounters);
+    HAL_FDCAN_GetProtocolStatus(hfdcan, &protocolStatus);
+    can_error.bits.tec = errorCounters.TxErrorCnt;
+    can_error.bits.rec = errorCounters.RxErrorCnt;
+    can_error.bits.warning_error_flag = protocolStatus.Warning;
+    can_error.bits.rx_passive_error_flag = errorCounters.RxErrorPassive;
+    can_error.bits.bus_off_flag = protocolStatus.BusOff;
 
-    err = ((uint32_t)txErrors << 16) | ((uint32_t)rxErrors << 8) | overflow;
-
-    if (CANmodule->errOld != err) {
+    if (CANmodule->errOld != can_error.all) {
         uint16_t status = CANmodule->CANerrorStatus;
 
-        CANmodule->errOld = err;
+        CANmodule->errOld = can_error.all;
 
-        if (txErrors >= 256U) {
+        if (can_error.bits.bus_off_flag) {
             /* bus off */
             status |= CO_CAN_ERRTX_BUS_OFF;
+            QS_BEGIN_ID(CANOPEN_ERROR_RECORD, AO_canopen->prio);
+                QS_STR("Error: Bus Off");
+            QS_END();
         } else {
             /* recalculate CANerrorStatus, first clear some flags */
             status &= 0xFFFF
@@ -315,17 +349,33 @@ CO_CANmodule_process(CO_CANmodule_t* CANmodule) {
                          | CO_CAN_ERRTX_PASSIVE);
 
             /* rx bus warning or passive */
-            if (rxErrors >= 128) {
+            if (can_error.bits.rx_passive_error_flag) {
                 status |= CO_CAN_ERRRX_WARNING | CO_CAN_ERRRX_PASSIVE;
-            } else if (rxErrors >= 96) {
+                QS_BEGIN_ID(CANOPEN_ERROR_RECORD, AO_canopen->prio);
+                    QS_STR("Error: Rx Passive");
+                    QS_U8(4, (uint8_t)(can_error.bits.rec & 0xFF));
+                QS_END();
+            } else if (can_error.bits.rec >= 96) {
                 status |= CO_CAN_ERRRX_WARNING;
+                QS_BEGIN_ID(CANOPEN_ERROR_RECORD, AO_canopen->prio);
+                    QS_STR("Error: Rx Warning");
+                    QS_U8(4, (uint8_t)(can_error.bits.rec & 0xFF));
+                QS_END();
             }
 
             /* tx bus warning or passive */
-            if (txErrors >= 128) {
+            if (can_error.bits.tec >= 128) {
                 status |= CO_CAN_ERRTX_WARNING | CO_CAN_ERRTX_PASSIVE;
-            } else if (txErrors >= 96) {
+                QS_BEGIN_ID(CANOPEN_ERROR_RECORD, AO_canopen->prio);
+                    QS_STR("Error: Tx Passive ");
+                    QS_U8(4, (uint8_t)(can_error.bits.tec & 0xFF));
+                QS_END();
+            } else if (can_error.bits.tec >= 96) {
                 status |= CO_CAN_ERRTX_WARNING;
+                QS_BEGIN_ID(CANOPEN_ERROR_RECORD, AO_canopen->prio);
+                    QS_STR("Error: Tx Warning ");
+                    QS_U8(4, (uint8_t)(can_error.bits.tec & 0xFF));
+                QS_END();
             }
 
             /* if not tx passive clear also overflow */
@@ -334,30 +384,7 @@ CO_CANmodule_process(CO_CANmodule_t* CANmodule) {
             }
         }
 
-        if (overflow != 0) {
-            /* CAN RX bus overflow */
-            status |= CO_CAN_ERRRX_OVERFLOW;
-        }
-
         CANmodule->CANerrorStatus = status;
-    }
-}
-
-void
-CO_CANinterrupt(CO_CANmodule_t* CANmodule) {
-
-    /* receive interrupt */
-    if (1) {
-
-        /* Clear interrupt flag */
-    }
-
-    /* transmit interrupt */
-    else if (0) {
-        /* Clear interrupt flag */
-
-    } else {
-        /* some other interrupt reason */
     }
 }
 
@@ -381,8 +408,15 @@ void HAL_FDCAN_RxFifo0Callback(
             /* Call specific function, which will process the message */
             if(buffer->CANrx_callback != NULL) {
                 buffer->CANrx_callback(buffer->object, (void*)&rcvMsg);
+                CANOPEN_post_rxEvt();
             }
         }
+    }
+    if((RxFifo0ITs & FDCAN_IT_RX_FIFO0_MESSAGE_LOST) != RESET) {
+        pModule->CANerrorStatus |= CO_CAN_ERRRX_OVERFLOW;
+        QS_BEGIN_ID(CANOPEN_ERROR_RECORD, AO_canopen->prio);
+            QS_STR("Error: Rx overflow");
+        QS_END();
     }
 }
 
