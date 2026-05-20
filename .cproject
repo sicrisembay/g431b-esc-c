@@ -81,6 +81,9 @@
 							<tool id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.objcopy.symbolsrec.871288814" name="MCU Output Converter Motorola S-rec with symbols" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.objcopy.symbolsrec"/>
 						</toolChain>
 					</folderInfo>
+					<fileInfo id="com.st.stm32cube.ide.mcu.gnu.managedbuild.config.exe.debug.1355752977.1923957803" name="OD.c" rcbsApplicability="disable" resourcePath="components/app/OD.c" toolsToInvoke="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.1659392575.1350679640">
+						<tool id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.1659392575.1350679640" name="MCU/MPU GCC Compiler" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.1659392575"/>
+					</fileInfo>
 					<sourceEntries>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Core"/>
 						<entry excluding="canopen/CANopenNode/storage|canopen/CANopenNode/extra|canopen/CANopenNode/doc|canopen/CANopenNode/309|canopen/CANopenNode/305|canopen/CANopenNode/304|canopen/CANopenNode/303|canopen/CANopenNode/example|qpc/zephyr|qpc/test|qpc/src/qv|qpc/src/qk|qpc/ports/arm-cm/qxk/llvm|qpc/ports/arm-cm/qxk/iar|qpc/ports/arm-cm/qxk/config|qpc/ports/arm-cm/qxk/armclang|qpc/ports/arm-cm/qv|qpc/ports/arm-cm/qutest|qpc/ports/arm-cm/qk|qpc/ports/zephyr|qpc/ports/win32-qv|qpc/ports/win32-qutest|qpc/ports/win32|qpc/ports/uc-os2|qpc/ports/threadx|qpc/ports/risc-v|qpc/ports/qube|qpc/ports/qep-only|qpc/ports/posix-qv|qpc/ports/posix-qutest|qpc/ports/posix|qpc/ports/msp430|qpc/ports/lint-plus2|qpc/ports/lint-plus|qpc/ports/freertos|qpc/ports/embos|qpc/ports/config|qpc/ports/arm-cr|qpc/examples|qpc/3rd_party" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="components"/>
@@ -106,5 +109,9 @@
 		</scannerConfigBuildInfo>
 	</storageModule>
 	<storageModule moduleId="org.eclipse.cdt.make.core.buildtargets"/>
-	<storageModule moduleId="refreshScope"/>
+	<storageModule moduleId="refreshScope" versionNumber="2">
+		<configuration configurationName="Debug">
+			<resource resourceType="PROJECT" workspacePath="/g431b-esc-c"/>
+		</configuration>
+	</storageModule>
 </cproject>
